@@ -1,0 +1,11 @@
+# VSCode files
+.vscode
+# Python Cache
+__pycache__
+src/__pycache__
+# Secrets
+.env
+src/.env
+# Build Files
+build
+dist
