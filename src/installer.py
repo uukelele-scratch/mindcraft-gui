@@ -11,12 +11,26 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QLabel,
     QFrame,
+    QMessageBox,
 )
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 
 from utils import set_font_size
 
+
+class InstallerWorker(QObject):
+    log = pyqtSignal(str)
+    finished = pyqtSignal()
+
+    def run(self):
+        self.log.emit("Installation Started")
+        time.sleep(1)
+        for i in range(5):
+            time.sleep(1)
+            self.log.emit(f"sleep completed ({i})")
+        self.log.emit("Installation Finished")
+        self.finished.emit()
 
 class Installer(QMainWindow):
     def __init__(self, parentWindow):
@@ -98,8 +112,11 @@ class Installer(QMainWindow):
         self.logText.setMarkdown(f"{currentText}\n**[{timestamp}]**: {message}")
 
     def begin_installation(self):
-        self.navigationLine.hide()
-        self.navigationWidget.hide()
+        self.cancelButton.setEnabled(False)
+        self.installButton.setEnabled(False)
+        self.installButton.setText("Finish")
+        self.installButton.clicked.disconnect(self.begin_installation)
+        self.installButton.clicked.connect(self.finish_installation)
         self.title.setText("Installing...")
         self.subtitle.setText("Please wait.")
         self.progressLabel.setText("Progress")
@@ -109,7 +126,24 @@ class Installer(QMainWindow):
         self.logText.setReadOnly(True)
         self.bodyLayout.addWidget(self.logText)
 
-        self.logMessage("Installation Started")
+        self.worker = InstallerWorker()
+        self.thread_ = QThread()
+        self.worker.moveToThread(self.thread_)
+        self.worker.log.connect(self.logMessage)
+        self.worker.finished.connect(self.thread_.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.finished.connect(self.thread_.deleteLater)
+        self.worker.finished.connect(lambda: self.installButton.setEnabled(True))
+        self.thread_.started.connect(self.worker.run)
+        self.thread_.start()
+
+    def finish_installation(self):
+        box = QMessageBox()
+        box.setText("Installation has finished. Restart the Mindcraft Launcher to continue.")
+        box.setStandardButtons(QMessageBox.Ok)
+        box.exec_()
+        self.close()
+        QApplication.quit()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
