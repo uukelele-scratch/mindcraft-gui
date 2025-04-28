@@ -1,1 +1,1 @@
-python -m PyInstaller --distpath .\dist\ --workpath .\build\ .\src\main.py --windowed
+python -m PyInstaller --distpath .\dist\ --workpath .\build\ .\src\main.py --windowed --noconfirm

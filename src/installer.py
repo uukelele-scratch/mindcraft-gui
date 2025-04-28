@@ -3,6 +3,7 @@ import zipfile
 import shutil
 import traceback # For detailed error logging
 import json
+import urllib.parse # For url encoding
 
 from PyQt5.QtWidgets import (
     QApplication,
@@ -431,7 +432,7 @@ class Installer(QMainWindow):
         else:
             self.installButton.setText("Close") # Change text to Close on failure
             self.title.setText("Installation Failed")
-            self.subtitle.setText("There has been an error installing. Please report it to https://github.com/uukelele-scratch/mindcraft-gui/issues/new")
+            self.subtitle.setText(f"There has been an error installing. Please report it [here](https://github.com/uukelele-scratch/mindcraft-gui/issues/new?title=%5BERROR%5D%3A%20Installer%20Error&body=An%20error%20happened%20runnning%20the%20installer.%20Log:%0A%60%60%60%0A{urllib.parse.quote(self.logText.toPlainText())}%0A%60%60%60&labels=installer-error).")
              # Disconnect old action, connect close action
             try:
                 self.installButton.clicked.disconnect(self.begin_installation)
