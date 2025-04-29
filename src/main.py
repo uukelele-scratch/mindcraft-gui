@@ -25,6 +25,7 @@ class MainWindow(QMainWindow):
         if not os.path.exists(os.path.join(os.path.dirname(sys.executable), "config.json")): # No config = Initial run
             print("[ WARN ] Config file does not exist. Initial run detected. Launching installer...")
             from installer import Installer
+            QApplication.instance().setQuitOnLastWindowClosed(False)
             self.installer = Installer(self)
             self.hide()
             self.installer.show()

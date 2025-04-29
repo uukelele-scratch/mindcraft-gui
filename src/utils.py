@@ -6,9 +6,64 @@ from PyQt5.QtGui import QFont
 def set_font_size(item: QWidget, size: int | float):
     item.setFont(QFont(QFont().family(), size))
 
-import subprocess, sys, traceback, shutil, requests, os
+import subprocess, sys, traceback, shutil, requests, os, io
 
-def run_command(log_func, command, cwd=None, shell=True, check=True, capture_output=False, text=True):
+def stream_command(log_func, command, cwd=None, shell=True):
+    """
+    Runs a command using Popen, streams its combined stdout/stderr, and returns success status.
+    """
+    cmd_str = ' '.join(command) if isinstance(command, list) else command
+    log_func(f"Streaming command: {cmd_str}" + (f" in {cwd}" if cwd else ""))
+    process = None # Initialize process to None
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            shell=shell,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, # Merge stderr into stdout
+            # Use text mode with error handling for decoding
+            # bufsize=1 ensures line buffering (more immediate output)
+            text=True, encoding='utf-8', errors='replace', bufsize=1,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+        )
+
+        # Read line by line from the process's stdout
+        # The loop will end when the process closes its stdout stream (usually at exit)
+        for line in process.stdout:
+             # Strip trailing newline/whitespace before logging
+            log_func(line.rstrip())
+
+        # Wait for the process to terminate completely
+        process.wait()
+
+        # Check the return code after the process has finished
+        if process.returncode == 0:
+            log_func(f"Command finished successfully (Return Code: {process.returncode}).")
+            return True
+        else:
+            log_func(f"ERROR: Command failed (Return Code: {process.returncode}).")
+            return False
+
+    except FileNotFoundError:
+        cmd_name = cmd_str.split()[0] if cmd_str else "Unknown"
+        log_func(f"ERROR: Command not found - ensure the program '{cmd_name}' is installed and in PATH.")
+        return False # Indicate failure
+    except Exception as e:
+        log_func(f"ERROR: An unexpected error occurred while streaming command: {cmd_str}")
+        log_func(f"Error details: {e}")
+        log_func(traceback.format_exc())
+        # Ensure process is terminated if it's still running after an exception
+        if process and process.poll() is None:
+            try:
+                process.terminate()
+                process.wait(timeout=5) # Give it a chance to terminate
+                log_func("Terminated hanging process due to exception.")
+            except Exception as term_e:
+                 log_func(f"Error trying to terminate process: {term_e}")
+        return False # Indicate failure
+
+def run_command(log_func, command, cwd=None, shell=True, check=True, text=True):
     """Runs a command using subprocess and logs output/errors."""
     cmd_str = ' '.join(command) if isinstance(command, list) else command
     log_func(f"Running command: {cmd_str}" + (f" in {cwd}" if cwd else ""))
@@ -18,33 +73,44 @@ def run_command(log_func, command, cwd=None, shell=True, check=True, capture_out
             cwd=cwd,
             shell=shell,
             check=check,
-            capture_output=capture_output,
             text=text,
-            stderr=subprocess.PIPE if capture_output else subprocess.PIPE, # Always capture stderr for logging
-            stdout=subprocess.PIPE if capture_output else subprocess.PIPE, # Always capture stdout for logging
+            stderr=subprocess.PIPE, # Always capture stderr for logging
+            stdout=subprocess.PIPE, # Always capture stdout for logging
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0 # Hide console window on Windows
         )
-        if result.stdout:
-            log_func(f"Command stdout:\n---\n{result.stdout.strip()}\n---")
-        if result.stderr:
-            # Don't raise error for stderr if check=False or return code is 0, just log it
-            log_func(f"Command stderr:\n---\n{result.stderr.strip()}\n---")
+        # Log stdout if it's not empty
+        stdout_log = result.stdout.strip() if result.stdout else ""
+        if stdout_log:
+            log_func(f"Command stdout:\n---\n{stdout_log}\n---")
+
+        # Log stderr if it's not empty
+        stderr_log = result.stderr.strip() if result.stderr else ""
+        if stderr_log:
+             # Log stderr even on success, as some tools write informational messages here
+            log_func(f"Command stderr:\n---\n{stderr_log}\n---")
+
         # If check=True, CalledProcessError will be raised below if returncode != 0
         log_func(f"Command finished successfully (Return Code: {result.returncode}).")
-        return result
+        return result # Return the result object
     except subprocess.CalledProcessError as e:
         log_func(f"ERROR: Command failed: {cmd_str}")
         log_func(f"Return code: {e.returncode}")
-        if e.stdout:
-            log_func(f"stdout:\n---\n{e.stdout.strip()}\n---")
-        if e.stderr:
-            log_func(f"stderr:\n---\n{e.stderr.strip()}\n---")
+        # Log captured output from the exception object
+        stdout_log = e.stdout.strip() if e.stdout else ""
+        if stdout_log:
+            log_func(f"stdout:\n---\n{stdout_log}\n---")
+        stderr_log = e.stderr.strip() if e.stderr else ""
+        if stderr_log:
+            log_func(f"stderr:\n---\n{stderr_log}\n---")
         raise # Re-raise the exception to be caught by the worker's main try/except
     except FileNotFoundError:
-        log_func(f"ERROR: Command not found - ensure the program is installed and in PATH: {cmd_str.split()[0]}")
+        # Extract the command name attempt
+        cmd_name = cmd_str.split()[0] if cmd_str else "Unknown"
+        log_func(f"ERROR: Command not found - ensure the program '{cmd_name}' is installed and in PATH.")
         raise
     except Exception as e:
-        log_func(f"ERROR: An unexpected error occurred while running command: {e}")
+        log_func(f"ERROR: An unexpected error occurred while running command: {cmd_str}")
+        log_func(f"Error details: {e}")
         log_func(traceback.format_exc()) # Log detailed traceback
         raise
 

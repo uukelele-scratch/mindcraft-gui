@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 
-from utils import set_font_size, run_command, is_tool_installed, download_file
+from utils import set_font_size, run_command, stream_command, is_tool_installed, download_file
 
 # --- Installation Configuration ---
 NODE_VERSION = "v22.15.0"
@@ -35,6 +35,8 @@ PROJECT_ZIP_URL = "https://github.com/kolbytn/mindcraft/archive/refs/heads/main.
 PROJECT_ZIP_FILENAME = "mindcraft.zip"
 PROJECT_EXTRACTED_FOLDER_NAME = "mindcraft-main" # Default name GitHub uses
 
+PATH = os.path.dirname(sys.executable)
+
 # --- Worker Class ---
 
 class InstallerWorker(QObject):
@@ -44,7 +46,7 @@ class InstallerWorker(QObject):
     def run(self):
         self.log.emit("Installation process started.")
         success = False # Assume failure unless explicitly set to True
-        path = os.path.dirname(sys.executable)
+        path = PATH
         installer_dir = os.path.join(path, "installers") # Subdir for downloads
 
         try:
@@ -106,8 +108,8 @@ class InstallerWorker(QObject):
 
             # --- 2. Install Node.js ---
             self.log.emit("\n--- Checking/Installing Node.js ---")
-            # Check both node and npm. Use None for npm version flag as it doesn't have --version easily.
-            if not is_tool_installed(self.log.emit, "node") or not is_tool_installed(self.log.emit, "npm", None):
+            # Check both node and npm.
+            if not is_tool_installed(self.log.emit, "node") or not is_tool_installed(self.log.emit, "npm"):
                 node_installer_path = os.path.join(installer_dir, NODE_INSTALLER_FILENAME)
                 self.log.emit("Node.js or npm not found. Attempting installation...")
                 if download_file(self.log.emit, NODE_INSTALLER_URL, node_installer_path):
@@ -200,8 +202,19 @@ class InstallerWorker(QObject):
                 if is_tool_installed(self.log.emit, "npm", None):
                     self.log.emit(f"Running 'npm install' in {project_extracted_path}...")
                     # Use shell=True for npm on Windows. Set cwd. Capture output for logging.
-                    run_command(self.log.emit, "npm install", cwd=project_extracted_path, shell=True, capture_output=True)
-                    self.log.emit("'npm install' completed.")
+                    npm_success = stream_command(
+                        self.log.emit,
+                        #"npm install", # Command to run
+                        "npm --version",
+                        cwd=project_extracted_path, # Directory to run in
+                        shell=True # Often needed for npm on Windows
+                    )
+                    if npm_success:
+                        self.log.emit("'npm install' stream completed successfully.")
+                    else:
+                        self.log.emit("ERROR: 'npm install' failed. Check logs above.")
+                        # Raise an error to stop the installation if npm install fails
+                        raise RuntimeError("'npm install' failed.")
                 else:
                     self.log.emit("ERROR: npm command not found. Cannot run 'npm install'. Please ensure Node.js installed correctly and restart if necessary.")
                     raise RuntimeError("npm not found, cannot run install.")
@@ -361,7 +374,7 @@ class Installer(QMainWindow):
 
         self.layout.addWidget(self.navigationWidget)
 
-    def logMessage(self, message: str):
+    def logMessage(self, message: str, logFile: str="installation.log"):
         """Appends a timestamped message to the log QTextEdit."""
         # Ensure logText is visible when the first message arrives
         if not self.logText.isVisible():
@@ -374,6 +387,8 @@ class Installer(QMainWindow):
         self.logText.append(f"[{timestamp}] {message}")
         # Ensure the latest messages are visible
         self.logText.verticalScrollBar().setValue(self.logText.verticalScrollBar().maximum())
+        with open(logFile, "a") as f:
+            f.write(f"\n[{timestamp}] {message}")
 
 
     def begin_installation(self):
@@ -398,9 +413,6 @@ class Installer(QMainWindow):
         # Connections for thread cleanup
         self.thread_.started.connect(self.worker.run)
         self.worker.finished.connect(self.thread_.quit)
-        # Use lambda to ensure deleteLater is called after the event loop processes quit()
-        self.worker.finished.connect(lambda: self.worker.deleteLater())
-        self.thread_.finished.connect(lambda: self.thread_.deleteLater())
 
         self.thread_.start()
         self.logMessage("Worker thread started.") # Log thread start
@@ -409,6 +421,10 @@ class Installer(QMainWindow):
     def on_installation_finished(self, success):
         """Handles the completion of the installation process."""
         self.logMessage(f"Worker thread finished. Success: {success}")
+
+        if self.worker:
+            self.worker.deleteLater()
+            self.logMessage("Scheduled worker object for deletion.")
 
         # Update button state and text based on success
         self.installButton.setEnabled(True)
@@ -429,25 +445,30 @@ class Installer(QMainWindow):
             # Automatically focus the finish button
             self.installButton.setDefault(True)
             self.installButton.setFocus()
+            self.finish_installation()
         else:
             self.installButton.setText("Close") # Change text to Close on failure
             self.title.setText("Installation Failed")
-            self.subtitle.setText(f"There has been an error installing. Please report it [here](https://github.com/uukelele-scratch/mindcraft-gui/issues/new?title=%5BERROR%5D%3A%20Installer%20Error&body=An%20error%20happened%20runnning%20the%20installer.%20Log:%0A%60%60%60%0A{urllib.parse.quote(self.logText.toPlainText())}%0A%60%60%60&labels=installer-error).")
-             # Disconnect old action, connect close action
+            try:
+                log_content = self.logText.toPlainText()
+            except Exception: # Handle potential errors reading log text
+                log_content = "Error reading log content."
+            error_link = f"https://github.com/uukelele-scratch/mindcraft-gui/issues/new?title=%5BERROR%5D%3A%20Installer%20Error&body=An%20error%20happened%20runnning%20the%20installer.%20Log:%0A%60%60%60%0A{urllib.parse.quote(log_content)}%0A%60%60%60&labels=installer-error"
+            self.subtitle.setText(f"There has been an error installing. Please report it <a href=\"{error_link}\">here</a>.")
+            # Make the subtitle link clickable
+            self.subtitle.setOpenExternalLinks(True)
+            
             try:
                 self.installButton.clicked.disconnect(self.begin_installation)
-            except TypeError:
-                 pass
-            try: # Make sure close isn't connected multiple times
-                 self.installButton.clicked.disconnect(self.close)
-            except TypeError:
-                 pass
-            self.installButton.clicked.connect(self.close) # Button now closes window
+            except TypeError: pass
+            try:
+                 self.installButton.clicked.disconnect(self.finish_installation) # Might have been connected if run twice?
+            except TypeError: pass
+            try: # Prevent multiple connections to quit
+                self.installButton.clicked.disconnect(QApplication.instance().quit)
+            except TypeError: pass
 
-        # Re-enable cancel button only if installation failed? Optional.
-        # If successful, they should click Finish.
-        if not success:
-             self.cancelButton.setEnabled(True)
+            self.installButton.clicked.connect(QApplication.instance().quit)
 
         # Clean up references
         self.thread_ = None
@@ -460,34 +481,32 @@ class Installer(QMainWindow):
         box.setWindowTitle("Installation Complete")
         box.setIcon(QMessageBox.Information)
         box.setText("Mindcraft setup has finished successfully.")
-        box.setInformativeText("You may need to restart the main Mindcraft Launcher if it was already open.")
+        box.setInformativeText("Restart the Mindcraft launcher to continue")
         box.setStandardButtons(QMessageBox.Ok)
         box.exec_()
         self.close() # Close the installer window
-        # Do not quit the entire application here if it's part of a larger app
-        # QApplication.quit() # Only use this if the installer is standalone
+        QApplication.instance().quit()
 
 
     def closeEvent(self, event):
         """Handle window close event, especially during installation."""
         if self.thread_ and self.thread_.isRunning():
             reply = QMessageBox.question(self, 'Confirm Exit',
-                                         "Installation is in progress. Are you sure you want to cancel and exit?",
+                                         "Installation is in progress. Are you sure you want to cancel and exit the application?", # Clarify exit scope
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.Yes:
-                # Attempt to stop the thread gracefully - might not work if tasks are blocking
-                # This is complex; usually, you just warn the user.
-                # For simplicity, we'll just allow exit. Resources might be left half-installed.
                 self.logMessage("WARNING: Installation cancelled by closing the window.")
-                # We should ideally wait for the thread to finish after requesting quit,
-                # but for simplicity here, we just accept the event.
-                # self.thread_.quit()
-                # self.thread_.wait(1000) # Wait a bit
+                # Terminating threads cleanly is hard. Let's just quit the app.
                 event.accept()
+                QApplication.instance().quit() # Force quit if cancelling mid-install
             else:
                 event.ignore()
         else:
+            # If install finished and user closes via X button instead of Finish/Close button
             event.accept()
+            # Decide if closing via X should quit the app too
+            if self.installButton.text() in ["Finish", "Close"]: # If installation completed
+                 QApplication.instance().quit()
 
 
 if __name__ == "__main__":
