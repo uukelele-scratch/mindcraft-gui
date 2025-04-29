@@ -204,10 +204,9 @@ class InstallerWorker(QObject):
                     # Use shell=True for npm on Windows. Set cwd. Capture output for logging.
                     npm_success = stream_command(
                         self.log.emit,
-                        #"npm install", # Command to run
-                        "npm --version",
+                        "npm install",
                         cwd=project_extracted_path, # Directory to run in
-                        shell=True # Often needed for npm on Windows
+                        shell=True
                     )
                     if npm_success:
                         self.log.emit("'npm install' stream completed successfully.")
@@ -510,22 +509,12 @@ class Installer(QMainWindow):
 
 
 if __name__ == "__main__":
-    # Important: For PyInstaller --noconsole mode, redirect stdout/stderr
-    # to prevent errors if background processes print anything unexpectedly.
-    # You might redirect to files or use a more robust logging setup.
-    # Example redirection (optional, use with caution):
-    # if getattr(sys, 'frozen', False): # Only if running as compiled executable
-    #     log_dir = os.path.dirname(sys.executable)
-    #     sys.stdout = open(os.path.join(log_dir, "installer_stdout.log"), "w")
-    #     sys.stderr = open(os.path.join(log_dir, "installer_stderr.log"), "w")
 
     app = QApplication(sys.argv)
 
-    # Apply a style maybe? (Optional)
-    # app.setStyle("Fusion")
+    app.setStyle("Fusion")
 
-    # --- Font setup (Example - adjust as needed) ---
-    default_font = QFont("Segoe UI", 10) # Use a common Windows font
+    default_font = QFont("Segoe UI", 10)
     app.setFont(default_font)
 
     window = Installer()
