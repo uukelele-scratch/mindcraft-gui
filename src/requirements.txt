@@ -1,2 +1,3 @@
 PyQt5==5.15.11
 PyQtWebEngine==5.15.7  # This is not yet required, but planned for a future feature.
+requests==2.32.3
