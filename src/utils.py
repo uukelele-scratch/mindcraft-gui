@@ -185,3 +185,48 @@ def download_file(log_func, url, destination_path):
         except OSError as e:
             log_func(f"WARNING: Could not remove partial download {destination_path}: {e}")
     return False
+
+def update_process_path(log_func, paths_to_add):
+    """
+    Adds specified directories to the PATH environment variable for the current process.
+    Avoids adding duplicates. Paths are usually prepended.
+    """
+    try:
+        current_path = os.environ.get('PATH', '')
+        path_separator = os.pathsep # ';' on Windows, ':' on Linux/macOS
+        current_path_parts = current_path.split(path_separator)
+        
+        # Normalize for comparison (lower case, remove trailing slashes)
+        normalized_current_paths = {os.path.normpath(p).lower() for p in current_path_parts if p}
+
+        paths_added_count = 0
+        # Prepend paths so they are found first (usually desired for newly installed tools)
+        new_path_parts = []
+        for path_to_add in reversed(paths_to_add): # Reverse to prepend in the original order
+            norm_path_to_add = os.path.normpath(path_to_add).lower()
+            if norm_path_to_add not in normalized_current_paths:
+                # Check if the directory actually exists before adding
+                if os.path.isdir(path_to_add):
+                    new_path_parts.insert(0, path_to_add) # Prepend
+                    normalized_current_paths.add(norm_path_to_add) # Add to check set
+                    log_func(f"Prepending to process PATH: {path_to_add}")
+                    paths_added_count += 1
+                else:
+                     log_func(f"Skipping PATH update for non-existent directory: {path_to_add}")
+            else:
+                log_func(f"Path already effectively in process PATH: {path_to_add}")
+
+        if paths_added_count > 0:
+            # Combine newly added paths with the original ones
+            final_path_parts = new_path_parts + current_path_parts
+            new_path = path_separator.join(final_path_parts)
+            os.environ['PATH'] = new_path
+            log_func(f"Process PATH updated. New length: {len(new_path)}")
+            # Log first few hundred chars for verification if needed
+            # log_func(f"New process PATH (start): {new_path[:300]}...")
+        else:
+            log_func("No changes needed to process PATH.")
+
+    except Exception as e:
+        log_func(f"ERROR: Failed to update process PATH environment variable: {e}")
+        log_func(traceback.format_exc())

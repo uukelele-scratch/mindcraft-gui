@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 
-from utils import set_font_size, run_command, stream_command, is_tool_installed, download_file
+from utils import set_font_size, run_command, stream_command, is_tool_installed, download_file, update_process_path
 
 # --- Installation Configuration ---
 NODE_VERSION = "v22.15.0"
@@ -108,6 +108,7 @@ class InstallerWorker(QObject):
             # --- 2. Install Node.js ---
             self.log.emit("\n--- Checking/Installing Node.js ---")
             # Check both node and npm.
+            node_installed = False
             if not is_tool_installed(self.log.emit, "node") or not is_tool_installed(self.log.emit, "npm"):
                 node_installer_path = os.path.join(installer_dir, NODE_INSTALLER_FILENAME)
                 self.log.emit("Node.js or npm not found. Attempting installation...")
@@ -124,21 +125,32 @@ class InstallerWorker(QObject):
                     # Use shell=True for the quoted path and command line parsing
                     run_command(self.log.emit, " ".join(msi_command), shell=True)
                     self.log.emit("Node.js installation command finished. MSI installer should update PATH.")
-                    self.log.emit("NOTE: A shell or PC restart might be needed for PATH changes to take full effect.")
-                    time.sleep(15) # MSI installs can take longer to finalize PATH/registry
-
-                    # Re-check after install attempt
-                    if not is_tool_installed(self.log.emit, "node") or not is_tool_installed(self.log.emit, "npm", None):
-                        self.log.emit("WARNING: Node/npm installed, but commands might not be in PATH yet. Restart shell/PC if subsequent steps fail.")
-                        # Maybe try adding Node path manually here if desperate - complex and risky.
-                    else:
-                         self.log.emit("Node.js and npm verified after installation attempt.")
+                    node_installed = True
 
                 else:
                     self.log.emit("ERROR: Failed to download Node.js installer. Cannot proceed.")
                     raise RuntimeError("Node.js download failed.")
             else:
                 self.log.emit("Node.js and npm seem to be installed.")
+                node_installed = True
+
+            # Update PATH
+            if node_installed:
+                self.log.emit("Attempting to update process PATH for Node/Git...")
+                # Define expected default paths
+                program_files = os.environ.get('ProgramFiles', 'C:\\Program Files')
+                default_paths_to_ensure = [
+                    os.path.join(program_files, 'nodejs'),
+                    os.path.join(program_files, 'Git', 'cmd')
+                ]
+                # Make sure the function is imported or defined above
+                update_process_path(self.log.emit, default_paths_to_ensure)
+
+                # Optional: Re-check if tools are found *after* path update
+                self.log.emit("Re-checking tools after potential PATH update...")
+                is_tool_installed(self.log.emit, "node")
+                is_tool_installed(self.log.emit, "npm")
+                is_tool_installed(self.log.emit, "git")
 
 
             # --- 3. Download and Extract Project ---
