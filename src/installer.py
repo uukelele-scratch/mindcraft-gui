@@ -277,7 +277,7 @@ class InstallerWorker(QObject):
 
 
 class Installer(QMainWindow):
-    def __init__(self, parentWindow=None): # Allow running standalone
+    def __init__(self, parentWindow=None):
         super().__init__()
 
         self.parentWindow = parentWindow
