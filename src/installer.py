@@ -99,9 +99,8 @@ class InstallerWorker(QObject):
                         if not is_tool_installed(self.log.emit, "git"):
                             self.log.emit("WARNING: Git installed, but 'git' command might not be in PATH yet. Restart shell/PC if subsequent steps fail.")
                     else:
-                        self.log.emit("ERROR: Failed to download Git installer. Cannot proceed with Git-dependent steps if needed.")
-                        # Decide if this is fatal. For mindcraft, probably not essential immediately.
-                        # raise RuntimeError("Git download failed.") # Make it fatal if needed
+                        self.log.emit("ERROR: Failed to download Git installer.")
+                        raise RuntimeError("Git download failed.")
             else:
                 self.log.emit("Git is already installed or was installed previously.")
 
