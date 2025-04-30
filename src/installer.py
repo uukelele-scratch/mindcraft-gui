@@ -509,14 +509,5 @@ class Installer(QMainWindow):
 
 
 if __name__ == "__main__":
-
-    app = QApplication(sys.argv)
-
-    app.setStyle("Fusion")
-
-    default_font = QFont("Segoe UI", 10)
-    app.setFont(default_font)
-
-    window = Installer()
-    window.show()
-    sys.exit(app.exec_())
+    print("This file is not to be executed as a standalone file. Run `main.py` instead.")
+    sys.exit(1)

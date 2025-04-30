@@ -9,6 +9,8 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QPushButton,
 )
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -35,5 +37,8 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    default_font = QFont("Segoe UI", 10)
+    app.setFont(default_font)
     window = MainWindow()
     sys.exit(app.exec_())
