@@ -36,7 +36,6 @@ PROJECT_ZIP_FILENAME = "mindcraft.zip"
 PROJECT_EXTRACTED_FOLDER_NAME = "mindcraft-main" # Default name GitHub uses
 
 PATH = os.path.dirname(sys.executable)
-
 # --- Worker Class ---
 
 class InstallerWorker(QObject):
@@ -384,7 +383,7 @@ class Installer(QMainWindow):
 
         self.layout.addWidget(self.navigationWidget)
 
-    def logMessage(self, message: str, logFile: str="installation.log"):
+    def logMessage(self, message: str, logFile=os.path.join(PATH, "installation.log")):
         """Appends a timestamped message to the log QTextEdit."""
         # Ensure logText is visible when the first message arrives
         if not self.logText.isVisible():
@@ -397,8 +396,12 @@ class Installer(QMainWindow):
         self.logText.append(f"[{timestamp}] {message}")
         # Ensure the latest messages are visible
         self.logText.verticalScrollBar().setValue(self.logText.verticalScrollBar().maximum())
-        with open(logFile, "a") as f:
-            f.write(f"\n[{timestamp}] {message}")
+        try:
+            with open(logFile, "a", encoding="utf-8") as f:
+                f.write(f"\n[{timestamp}] {message}")
+        except Exception as e:
+            self.logText.append(f"[{timestamp}] Error writing to installation log file: {e}")
+            self.logText.verticalScrollBar().setValue(self.logText.verticalScrollbar().maximum())
 
 
     def begin_installation(self):
