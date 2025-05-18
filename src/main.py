@@ -37,7 +37,6 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setStyle("Fusion")
     default_font = QFont("Segoe UI", 10)
     app.setFont(default_font)
     window = MainWindow()

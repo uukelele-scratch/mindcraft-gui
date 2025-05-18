@@ -515,11 +515,9 @@ class Installer(QMainWindow):
             else:
                 event.ignore()
         else:
-            # If install finished and user closes via X button instead of Finish/Close button
+            # If install finished and user closes via X button instead of Finish/Close button OR if installation not yet started
             event.accept()
-            # Decide if closing via X should quit the app too
-            if self.installButton.text() in ["Finish", "Close"]: # If installation completed
-                 QApplication.instance().quit()
+            QApplication.instance().quit()
 
 
 if __name__ == "__main__":
