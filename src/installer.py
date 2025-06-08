@@ -31,9 +31,9 @@ GIT_INSTALLER_URL = "https://github.com/git-for-windows/git/releases/download/v2
 GIT_INSTALLER_FILENAME = "Git-2.49.0-64-bit.exe"
 GIT_WINGET_ID = "Git.Git"
 
-PROJECT_ZIP_URL = "https://github.com/kolbytn/mindcraft/archive/refs/heads/main.zip"
-PROJECT_ZIP_FILENAME = "mindcraft.zip"
-PROJECT_EXTRACTED_FOLDER_NAME = "mindcraft-main" # Default name GitHub uses
+PROJECT_ZIP_URL = "https://github.com/mindcraft-ce/mindcraft-ce/archive/refs/heads/main.zip"
+PROJECT_ZIP_FILENAME = "mindcraft-ce.zip"
+PROJECT_EXTRACTED_FOLDER_NAME = "mindcraft-ce-main" # Default name GitHub uses
 
 PATH = os.path.dirname(sys.executable)
 # --- Worker Class ---
@@ -153,7 +153,7 @@ class InstallerWorker(QObject):
 
 
             # --- 3. Download and Extract Project ---
-            self.log.emit("\n--- Downloading and Extracting Mindcraft Project ---")
+            self.log.emit("\n--- Downloading and Extracting mindcraft-ce ---")
             # Use the base path for downloads and extractions now
             project_zip_path = os.path.join(path, PROJECT_ZIP_FILENAME)
             project_extracted_path = os.path.join(path, PROJECT_EXTRACTED_FOLDER_NAME)
@@ -209,7 +209,7 @@ class InstallerWorker(QObject):
             self.log.emit("\n--- Running npm install ---")
             if os.path.isdir(project_extracted_path):
                 # Ensure npm is available before trying to run it
-                if is_tool_installed(self.log.emit, "npm", None):
+                if is_tool_installed(self.log.emit, "npm"):
                     self.log.emit(f"Running 'npm install' in {project_extracted_path}...")
                     # Use shell=True for npm on Windows. Set cwd. Capture output for logging.
                     npm_success = stream_command(
@@ -258,7 +258,7 @@ class InstallerWorker(QObject):
             # --- 6. Create config.json file to store information ---
             self.log.emit("\n--- Adding config.json to store launcher options ---")
             with open(os.path.join(path, "config.json"), mode="w") as config:
-                config.write(json.dumps({"downloaded": time.time(), "settings": {}}))
+                config.write(json.dumps({"installed_time": time.time(), "settings": {}}))
 
 
             # --- Success ---
@@ -295,14 +295,14 @@ class Installer(QMainWindow):
         self.thread_ = None # Initialize thread attribute
         self.worker = None # Initialize worker attribute
 
-        self.setWindowTitle("Mindcraft Installer")
+        self.setWindowTitle("mindcraft-ce Installer")
         self.setGeometry(100, 100, 800, 600) # Increased height slightly for log
 
         self.widget = QWidget()
-        self.layout = QVBoxLayout()
-        self.layout.setContentsMargins(10, 10, 10, 10)
-        self.layout.setSpacing(10) # Reduced spacing slightly
-        self.widget.setLayout(self.layout)
+        self.main_layout = QVBoxLayout()
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(10) # Reduced spacing slightly
+        self.widget.setLayout(self.main_layout)
         self.setCentralWidget(self.widget)
 
         self.header = QWidget()
@@ -310,35 +310,35 @@ class Installer(QMainWindow):
         self.headerLayout.setContentsMargins(0, 0, 0, 0)
         self.headerLayout.setSpacing(5)
         self.header.setLayout(self.headerLayout)
-        # self.layout.addWidget(self.header) # Removed stretch, use fixed height
+        # self.main_layout.addWidget(self.header) # Removed stretch, use fixed height
         self.header.setMaximumHeight(100)
 
-        self.title = QLabel("Welcome to the Mindcraft Setup!") # Changed title slightly
+        self.title = QLabel("Welcome to mindcraft-ce Setup!")
         set_font_size(self.title, 24)
-        self.subtitle = QLabel("This will install necessary components (Node.js, Git) and download Mindcraft.")
+        self.subtitle = QLabel("This will install necessary components (Node.js, Git) and download mindcraft-ce.")
         set_font_size(self.subtitle, 12)
         self.headerLayout.addWidget(self.title)
         self.headerLayout.addWidget(self.subtitle)
-        self.layout.addWidget(self.header) # Add header here
+        self.main_layout.addWidget(self.header) # Add header here
 
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Sunken)
-        self.layout.addWidget(line)
+        self.main_layout.addWidget(line)
 
         self.body = QWidget()
         self.bodyLayout = QVBoxLayout()
         self.bodyLayout.setContentsMargins(0, 10, 0, 0) # Add some top margin
         self.bodyLayout.setSpacing(10)
         self.body.setLayout(self.bodyLayout)
-        self.layout.addWidget(self.body, stretch=1) # Add stretch here for body
+        self.main_layout.addWidget(self.body, stretch=1) # Add stretch here for body
 
         self.progressLabel = QLabel("Installation Details")
         set_font_size(self.progressLabel, 16)
         self.bodyLayout.addWidget(self.progressLabel)
 
         install_path = os.path.dirname(sys.executable)
-        self.detailLabel = QLabel(f"Mindcraft will be set up in the following location:<br>"
+        self.detailLabel = QLabel(f"mindcraft-ce will be set up in the following location:<br>"
                              f"<code>{install_path}</code>"
                              "<br><br><b>Important:</b> This setup may require <b>Administrator privileges</b> "
                              "to install Node.js and Git system-wide. If the installation fails, "
@@ -379,9 +379,9 @@ class Installer(QMainWindow):
         self.navigationLine = QFrame()
         self.navigationLine.setFrameShape(QFrame.HLine)
         self.navigationLine.setFrameShadow(QFrame.Sunken)
-        self.layout.addWidget(self.navigationLine)
+        self.main_layout.addWidget(self.navigationLine)
 
-        self.layout.addWidget(self.navigationWidget)
+        self.main_layout.addWidget(self.navigationWidget)
 
     def logMessage(self, message: str, logFile=os.path.join(PATH, "installation.log")):
         """Appends a timestamped message to the log QTextEdit."""
@@ -411,7 +411,7 @@ class Installer(QMainWindow):
         self.installButton.setText("Installing...") # Change button text
 
         # Update UI elements for installation phase
-        self.title.setText("Installing Mindcraft...")
+        self.title.setText("Installing mindcraft-ce...")
         self.subtitle.setText("Please wait, this may take several minutes...")
 
         # Setup and start the worker thread
@@ -493,8 +493,8 @@ class Installer(QMainWindow):
         box = QMessageBox(self)
         box.setWindowTitle("Installation Complete")
         box.setIcon(QMessageBox.Information)
-        box.setText("Mindcraft setup has finished successfully.")
-        box.setInformativeText("Restart the Mindcraft launcher to continue")
+        box.setText("mindcraft-ce setup has finished successfully.")
+        box.setInformativeText("Restart the mindcraft-ce launcher to continue")
         box.setStandardButtons(QMessageBox.Ok)
         box.exec_()
         self.close() # Close the installer window
